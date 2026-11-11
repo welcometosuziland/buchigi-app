@@ -12,7 +12,8 @@ function logo(big) {
 function header() {
   return el("header", { class: "header" },
     logo(false),
-    el("button", { class: "textbtn", onclick: () => go("settings") }, "설정"));
+    el("button", { class: "iconbtn", "aria-label": "설정", title: "설정", onclick: () => go("settings") },
+      el("span", { class: "icon i-settings", "aria-hidden": "true" })));
 }
 function page(title, sub, ...body) {
   return el("div", {}, header(),
@@ -154,8 +155,7 @@ async function home() {
       cards.push(el("section", { class: "panel" },
         el("h2", {}, "이번 달 대화 기록"),
         el("p", { class: "sub" }, `${now.getFullYear()}년 ${now.getMonth() + 1}월`),
-        el("div", { class: "big-num" }, el("strong", {}, String(monthCount)), el("span", {}, "번 대화했어요")),
-        el("p", { class: "note", style: "margin-top:8px" }, "진단이 아닌 대화 기록이에요. 부모님 본인의 지난 기록과 비교해요.")));
+        el("div", { class: "big-num" }, el("strong", {}, String(monthCount)), el("span", {}, "번 대화했어요"))));
       cards.push(signalCard(rep.signal, true));
 
       const latest = (rep.recent || []).find((r) => r.transcript);
@@ -350,8 +350,8 @@ async function report() {
         el("details", {}, el("summary", {}, "주별 숫자로 보기"),
           el("table", {}, el("thead", {}, el("tr", {}, ["주", "횟수", "대답까지", "말씀 양", "이름·장소"].map((h) => el("th", {}, h)))), el("tbody", {}, rows)))),
       el("h2", { style: "padding:0 4px" }, "최근 대화"),
-      el("div", { class: "panel stack" }, ...recent),
-      el("p", { class: "panel note" }, "이 기록은 진단이 아니에요. 걱정되는 변화가 이어지면 가까운 치매안심센터 같은 전문 기관과 상담해 보세요.")));
+      el("div", { class: "panel stack report-recent" }, ...recent),
+      el("p", { class: "panel note" }, "이 기록은 진단이 아님을 밝힙니다.")));
   } catch (e) { show(header(), errorBox(e)); }
 }
 

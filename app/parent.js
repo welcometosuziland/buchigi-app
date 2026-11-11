@@ -64,6 +64,23 @@ function start() {
     dock(el("button", { class: "btn", onclick: next }, "이야기 시작하기")));
 }
 
+/* 질문을 한 줄로: 말풍선 폭에 맞을 때까지 글씨를 줄이고(최소 15px),
+   그래도 넘치면 원래 크기로 두 줄 표시 (어르신이 읽기 편하도록) */
+function fitOneLine(node, max = 22, min = 15) {
+  node.style.whiteSpace = "nowrap";
+  let size = max;
+  node.style.fontSize = size + "px";
+  while (node.scrollWidth > node.clientWidth && size > min) {
+    size -= 1;
+    node.style.fontSize = size + "px";
+  }
+  if (node.scrollWidth > node.clientWidth) {
+    node.style.whiteSpace = "";
+    node.style.fontSize = "";
+    node.style.wordBreak = "keep-all"; // 줄을 넘길 땐 단어가 중간에 끊기지 않게
+  }
+}
+
 /* ---------- 질문과 대답 ---------- */
 async function next() {
   let active = true;
@@ -80,12 +97,17 @@ async function next() {
   const status = el("p", { class: "status" }, "질문을 들려드릴게요");
   const talk = el("button", { class: "btn", disabled: true }, "말하기");
   const replay = el("button", { class: "btn line" }, "다시 듣기");
-  const thread = el("div", { class: "stack" }, el("p", { class: "bubble ask" }, q.question));
+  const askBubble = el("p", { class: "bubble ask" }, q.question);
+  const thread = el("div", { class: "stack" }, askBubble);
   show(topBar("우리 가족 이야기", "추억 대화"),
     el("div", { class: "gap" },
       el("div", { class: "photo" }, el("img", { src: q.photo_url, alt: "가족 사진" }), q.caption ? el("span", { class: "tag" }, q.caption) : null),
       thread, status),
     dock(replay, talk));
+  fitOneLine(askBubble);
+  const refit = () => fitOneLine(askBubble);
+  window.addEventListener("resize", refit);
+  cleanup = () => { active = false; window.removeEventListener("resize", refit); };
 
   let questionEnd = null, audio;
   try { audio = new Audio(URL.createObjectURL(await api(`/questions/${q.question_id}/audio`, { blob: true }))); }
@@ -105,6 +127,7 @@ async function next() {
   let recorder, stream, chunks = [], answerStart, timer, left;
   cleanup = () => {
     active = false;
+    window.removeEventListener("resize", refit);
     clearInterval(timer);
     if (audio) audio.pause();
     if (recorder && recorder.state !== "inactive") {

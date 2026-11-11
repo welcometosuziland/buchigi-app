@@ -109,6 +109,8 @@ p { margin: 0; }
 .bubble.ask { background: var(--card); border: 1px solid var(--line); }
 .bubble.say { background: var(--lime); color: var(--on-pastel); margin-left: auto; }
 .bubble.hidden { background: var(--panel); color: var(--muted); margin-left: auto; font-size: 14px; }
+/* 리포트 최근 대화: 부모님 답변 말풍선이 글 길이만큼만 차지하고 오른쪽 끝에 붙도록 */
+.report-recent .bubble.say { width: fit-content; margin-left: auto; text-align: left; }
 .meta { font-size: 13px; color: var(--muted); text-align: right; margin-top: 4px; }
 .flag { display: inline-block; background: var(--pink); color: var(--on-pastel); font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px; }
 
@@ -128,7 +130,17 @@ th:first-child, td:first-child { text-align: left; }
 /* 아래 탭 */
 .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--bg); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
 .tabs .inner { max-width: 520px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
-.tabs button { background: none; border: 0; padding: 14px 0 16px; font-size: 14px; color: var(--muted); cursor: pointer; font-weight: 500; }
+.tabs button { background: none; border: 0; padding: 10px 0 12px; font-size: 13px; color: var(--muted); cursor: pointer; font-weight: 500; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+
+/* 아이콘: SVG를 마스크로 써서 글자색(currentColor)을 따라가게 함 */
+.icon { display: inline-block; width: 22px; height: 22px; flex: none; background-color: currentColor; -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat; }
+.i-home { --icon: url(icons/home.svg); }
+.i-plus { --icon: url(icons/plus.svg); width: 26px; height: 26px; margin: -2px 0; }
+.i-picture { --icon: url(icons/picture.svg); }
+.i-stats { --icon: url(icons/stats.svg); }
+.i-settings { --icon: url(icons/settings.svg); }
+.iconbtn { background: none; border: 0; padding: 8px; margin: -4px -4px -4px 0; border-radius: 999px; color: var(--muted); cursor: pointer; display: flex; }
+.iconbtn:hover { color: var(--ink); }
 .tabs button[aria-current="page"] { color: var(--ink); font-weight: 700; }
 
 /* 부모님 화면: 크고 단순하게 */
