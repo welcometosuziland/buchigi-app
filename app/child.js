@@ -97,8 +97,7 @@ async function home() {
         el("div", { style: "margin-top:16px" },
           meter("대화 참여", trend(w, "count", true)),
           meter("대답 속도", trend(w, "avg_delay_sec", false)),
-          meter("이야기 양", trend(w, "avg_chars", true))),
-        el("p", { class: "note", style: "margin-top:16px" }, "진단이 아닌 대화 기록이에요. 부모님 본인의 지난 기록과 비교해요.")));
+          meter("이야기 양", trend(w, "avg_chars", true)))));
 
       const latest = (rep.recent || []).find((r) => r.transcript);
       if (latest) {
