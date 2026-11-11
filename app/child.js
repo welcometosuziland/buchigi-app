@@ -296,7 +296,7 @@ async function report() {
           el("table", {}, el("thead", {}, el("tr", {}, ["주", "횟수", "대답까지", "말씀 양", "이름·장소"].map((h) => el("th", {}, h)))), el("tbody", {}, rows)))),
       el("h2", { style: "padding:0 4px" }, "최근 대화"),
       el("div", { class: "panel stack" }, ...recent),
-      el("p", { class: "panel note" }, "이 기록은 진단이 아니에요. 걱정되는 변화가 이어지면 가까운 치매안심센터 같은 전문 기관과 상담해 보세요.")));
+      el("p", { class: "panel note" }, "이 기록은 진단이 아님을 밝힙니다.")));
   } catch (e) { show(header(), errorBox(e)); }
 }
 
