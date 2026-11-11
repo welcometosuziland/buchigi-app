@@ -164,7 +164,7 @@ async function home() {
           el("h2", {}, "오늘의 대화 거리"),
           el("p", { class: "bubble ask" }, latest.question),
           el("p", { class: "bubble say" }, latest.transcript),
-          el("p", { class: "sub" }, `${md(latest.date)}에 이렇게 말씀하셨어요. 전화해서 더 여쭤보는 건 어떨까요?`)));
+          el("p", { class: "sub" }, `${md(latest.date)}에 이렇게 말씀하셨어요. 오늘 부모님과 전화 어떠세요?`)));
       }
 
       const recent = (rep.recent || []).slice(0, 3);
@@ -351,7 +351,7 @@ async function report() {
           el("table", {}, el("thead", {}, el("tr", {}, ["주", "횟수", "대답까지", "말씀 양", "이름·장소"].map((h) => el("th", {}, h)))), el("tbody", {}, rows)))),
       el("h2", { style: "padding:0 4px" }, "최근 대화"),
       el("div", { class: "panel stack report-recent" }, ...recent),
-      el("p", { class: "panel note" }, "이 기록은 진단이 아님을 밝힙니다.")));
+      el("p", { class: "note", style: "padding:0 4px" }, "이 기록은 진단이 아님을 밝힙니다.")));
   } catch (e) { show(header(), errorBox(e)); }
 }
 
