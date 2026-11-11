@@ -109,6 +109,8 @@ p { margin: 0; }
 .bubble.ask { background: var(--card); border: 1px solid var(--line); }
 .bubble.say { background: var(--lime); color: var(--on-pastel); margin-left: auto; }
 .bubble.hidden { background: var(--panel); color: var(--muted); margin-left: auto; font-size: 14px; }
+/* 리포트 최근 대화: 부모님 답변 말풍선이 글 길이만큼만 차지하고 오른쪽 끝에 붙도록 */
+.report-recent .bubble.say { width: fit-content; margin-left: auto; text-align: left; }
 .meta { font-size: 13px; color: var(--muted); text-align: right; margin-top: 4px; }
 .flag { display: inline-block; background: var(--pink); color: var(--on-pastel); font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px; }
 

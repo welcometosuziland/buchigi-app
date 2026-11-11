@@ -295,7 +295,7 @@ async function report() {
         el("details", { style: "margin-top:18px" }, el("summary", {}, "주별 숫자로 보기"),
           el("table", {}, el("thead", {}, el("tr", {}, ["주", "횟수", "대답까지", "말씀 양", "이름·장소"].map((h) => el("th", {}, h)))), el("tbody", {}, rows)))),
       el("h2", { style: "padding:0 4px" }, "최근 대화"),
-      el("div", { class: "panel stack" }, ...recent),
+      el("div", { class: "panel stack report-recent" }, ...recent),
       el("p", { class: "panel note" }, "이 기록은 진단이 아님을 밝힙니다.")));
   } catch (e) { show(header(), errorBox(e)); }
 }
