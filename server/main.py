@@ -3,8 +3,10 @@
 실행:  python -m uvicorn main:app --host 0.0.0.0 --port 8000
 문서:  http://localhost:8000/docs
 """
+import array
 import json
 import os
+import re
 import subprocess
 import tempfile
 import wave
@@ -101,6 +103,7 @@ class SettingsIn(BaseModel):
     consented: bool
     share_transcript: bool
     share_audio: bool
+    share_trend: bool = True
 
 
 @app.get("/settings")
@@ -213,9 +216,86 @@ def answer_audio(answer_id: int, x_device_token: str | None = Header(None)):
     return {"url": signed.get("signedURL") or signed.get("signedUrl")}
 
 
+# ---- 변화 신호: 부모님 본인의 처음 기록(기준선)과 최근 기록을 비교 ----
+# 판단 기준(지표, 비중, 점수 구간)은 판단 기준 팀이 정한 값으로 이 아래만 바꾸면 돼요.
+# 지금 값은 화면 시연을 위한 임시 값이에요.
+MIN_ANSWERS = int(os.getenv("SIGNAL_MIN_ANSWERS", "8"))      # 점수를 보여주기 위한 최소 대화 수
+BASELINE_ANSWERS = int(os.getenv("SIGNAL_BASELINE", "4"))     # 기준선으로 쓸 처음 대화 수
+WEIGHTS = {"onset": 0.30, "length": 0.25, "mention": 0.25, "repeat": 0.20}
+LABELS = {"onset": "대답까지", "length": "이야기 양", "mention": "이름·장소 언급", "repeat": "반복 이야기"}
+
+
+def tokens(text: str) -> set[str]:
+    return {w for w in re.findall(r"[가-힣A-Za-z0-9]+", text or "") if len(w) >= 2}
+
+
+def avg(xs):
+    xs = [x for x in xs if x is not None]
+    return sum(xs) / len(xs) if xs else None
+
+
+def spread(xs, floor):
+    xs = [x for x in xs if x is not None]
+    if len(xs) < 2:
+        return floor
+    m = sum(xs) / len(xs)
+    return max((sum((x - m) ** 2 for x in xs) / (len(xs) - 1)) ** 0.5, floor)
+
+
+def part_scores(base: list[dict], recent: list[dict]) -> dict:
+    """각 지표가 기준선보다 나빠진 정도를 0~100으로. 기준선의 2배 표준편차만큼 나빠지면 100"""
+    def bad(base_vals, recent_vals, floor, worse_if_higher):
+        b, r = avg(base_vals), avg(recent_vals)
+        if b is None or r is None:
+            return None
+        z = (r - b) / spread(base_vals, floor)
+        if not worse_if_higher:
+            z = -z
+        return round(min(max(z / 2, 0), 1) * 100)
+    return {
+        "onset": bad([i["onset"] for i in base], [i["onset"] for i in recent], 0.5, True),
+        "length": bad([i["chars"] for i in base], [i["chars"] for i in recent], 10, False),
+        "mention": bad([i["mention"] for i in base], [i["mention"] for i in recent], 0.15, False),
+        "repeat": bad([i["repeat"] for i in base], [i["repeat"] for i in recent], 0.2, True),
+    }
+
+
+def total(parts: dict) -> int | None:
+    used = {k: v for k, v in parts.items() if v is not None}
+    if not used:
+        return None
+    w = sum(WEIGHTS[k] for k in used)
+    return round(sum(WEIGHTS[k] * v for k, v in used.items()) / w)
+
+
+def signal(items: list[dict]) -> dict:
+    if len(items) < MIN_ANSWERS:
+        return {"ready": False, "have": len(items), "need": MIN_ANSWERS}
+    base, after = items[:BASELINE_ANSWERS], items[BASELINE_ANSWERS:]
+    weeks = defaultdict(list)
+    for i in after:
+        weeks[i["week"]].append(i)
+    weekly = [{"week": k, "score": total(part_scores(base, v))} for k, v in sorted(weeks.items())]
+    recent = sorted(weeks.items())[-1][1] if weeks else after
+    parts = part_scores(base, sorted(weeks.items())[-1][1] if weeks else after)
+    score = total(parts) or 0
+    two_high = len(weekly) >= 2 and all((w["score"] or 0) >= 70 for w in weekly[-2:])
+    if score >= 70 and two_high:
+        level, message = "consult", "몇 주째 이야기하시는 방식에 변화가 이어지고 있어요. 진단은 아니지만, 전문가와 한번 이야기해 보면 안심이 될 수 있어요."
+    elif score >= 40:
+        level, message = "watch", "최근 대화에 조금 달라진 점이 보여요. 이번 주엔 전화로 안부를 여쭤보는 건 어떨까요?"
+    else:
+        level, message = "stable", "평소와 비슷하게 이야기 나누고 계세요."
+    return {
+        "ready": True, "score": score, "level": level, "message": message, "weekly": weekly,
+        "parts": [{"key": k, "label": LABELS[k], "score": v} for k, v in parts.items()],
+        "recent_count": len(recent),
+    }
+
+
 @app.get("/report")
 def report(x_device_token: str | None = Header(None)):
-    """주별 변화 기록. 진단이 아니라 추세를 보여주기 위한 기본 지표"""
+    """주별 변화 기록과 변화 신호. 진단이 아니라 부모님 본인의 변화 추세를 보여주기 위한 지표"""
     check(x_device_token)
     st = settings()
     if not st["consented"]:
@@ -224,7 +304,7 @@ def report(x_device_token: str | None = Header(None)):
     rows = (sb.table("answers").select("*, questions(text, photos(id, keywords, place, image_path))")
             .order("created_at").execute().data)
     weeks = defaultdict(list)
-    items = []
+    items, seen = [], []
     for a in rows:
         t = a.get("transcript") or ""
         q = a.get("questions") or {}
@@ -235,32 +315,35 @@ def report(x_device_token: str | None = Header(None)):
         if a.get("question_end_at") and a.get("answer_start_at"):
             d = (datetime.fromisoformat(a["answer_start_at"]) - datetime.fromisoformat(a["question_end_at"])).total_seconds()
             delay = round(max(d, 0), 1)
+        tk = tokens(t)
+        repeat = 1 if len(tk) >= 4 and any(len(tk & s) / len(tk | s) >= 0.5 for s in seen) else 0
+        seen.append(tk)
+        created = datetime.fromisoformat(a["created_at"])
+        y, w, _ = created.isocalendar()
         item = {
-            "id": a["id"], "date": datetime.fromisoformat(a["created_at"]).astimezone(KST).date().isoformat(), "question": q.get("text"),
+            "id": a["id"], "date": created.astimezone(KST).date().isoformat(), "question": q.get("text"),
             "photo_url": photo_url(ph["image_path"]) if ph.get("image_path") else None,
-            "delay_sec": delay, "chars": len(t.replace(" ", "")), "duration_sec": a.get("duration_sec"),
-            "keywords": kws, "mentioned": hit,
+            "delay_sec": delay, "onset": delay, "chars": len(t.replace(" ", "")),
+            "duration_sec": a.get("duration_sec"), "keywords": kws, "mentioned": hit,
+            "mention": (len(hit) / len(kws)) if kws else None, "repeat": repeat,
             "transcript": t if st["share_transcript"] else None,
             "can_play": bool(st["share_audio"] and a.get("audio_path")),
+            "week": f"{y}-W{w:02d}",
         }
-        # 확인해 볼 만한 대화: 사진 키워드를 하나도 언급하지 않았거나 대답이 매우 짧은 경우 (참고용)
-        item["check"] = bool(kws and not hit) or item["chars"] < 10
+        item["check"] = bool(kws and not hit) or item["chars"] < 10 or bool(repeat)
         items.append(item)
-        y, w, _ = datetime.fromisoformat(a["created_at"]).isocalendar()
-        weeks[f"{y}-W{w:02d}"].append(item)
-
-    def avg(xs):
-        xs = [x for x in xs if x is not None]
-        return round(sum(xs) / len(xs), 1) if xs else None
+        weeks[item["week"]].append(item)
 
     weekly = [{
         "week": k, "count": len(v),
-        "avg_delay_sec": avg([i["delay_sec"] for i in v]),
-        "avg_chars": avg([i["chars"] for i in v]),
-        "mention_rate": avg([len(i["mentioned"]) / len(i["keywords"]) for i in v if i["keywords"]]),
+        "avg_delay_sec": round(avg([i["delay_sec"] for i in v]) or 0, 1) if v else None,
+        "avg_chars": round(avg([i["chars"] for i in v]) or 0, 1),
+        "mention_rate": avg([i["mention"] for i in v]),
     } for k, v in sorted(weeks.items())]
-    dates = [i["date"] for i in items]  # 달력과 이번 달 횟수용
-    return {"consented": True, "settings": st, "weekly": weekly, "recent": list(reversed(items))[:10], "dates": dates}
+    sig = signal(items) if st.get("share_trend", True) else {"ready": False, "hidden": True}
+    dates = [i["date"] for i in items]
+    return {"consented": True, "settings": st, "weekly": weekly, "signal": sig,
+            "recent": list(reversed(items))[:10], "dates": dates}
 
 
 # ---------------- 부모님 화면 ----------------
