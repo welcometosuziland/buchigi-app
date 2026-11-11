@@ -109,8 +109,6 @@ p { margin: 0; }
 .bubble.ask { background: var(--card); border: 1px solid var(--line); }
 .bubble.say { background: var(--lime); color: var(--on-pastel); margin-left: auto; }
 .bubble.hidden { background: var(--panel); color: var(--muted); margin-left: auto; font-size: 14px; }
-/* 리포트 최근 대화: 부모님 답변 말풍선이 글 길이만큼만 차지하고 오른쪽 끝에 붙도록 */
-.report-recent .bubble.say { width: fit-content; margin-left: auto; text-align: left; }
 .meta { font-size: 13px; color: var(--muted); text-align: right; margin-top: 4px; }
 .flag { display: inline-block; background: var(--pink); color: var(--on-pastel); font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px; }
 
@@ -161,3 +159,17 @@ th:first-child, td:first-child { text-align: left; }
 .parent .back { z-index: 2; position: absolute; left: 14px; top: 14px; background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.5); border-radius: 999px; padding: 6px 14px; font-size: 16px; font-weight: 600; cursor: pointer; }
 .parent .topblock.has-back { padding-top: 58px; }
 .btn.small { white-space: nowrap; flex: none; }
+
+/* 로고 */
+.logo-img { height: 34px; width: auto; display: block; }
+.logo-img.big { height: 48px; }
+.parent .top-mark { width: 44px; height: 44px; object-fit: contain; display: block; margin: 0 auto 6px; background: #fff; border-radius: 50%; padding: 6px; }
+@media (prefers-color-scheme: dark) { .logo-img { background: #fff; border-radius: 12px; padding: 4px 10px; } }
+.logo-link { display: inline-block; line-height: 0; border-radius: 12px; }
+
+/* 변화 신호 */
+.sig-badge { display: inline-block; font-weight: 700; font-size: 14px; border-radius: 999px; padding: 4px 12px; color: var(--on-pastel); }
+.sig-score { display: flex; align-items: baseline; gap: 6px; }
+.sig-score strong { font-size: 64px; font-weight: 300; line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+.sig-score span { color: var(--muted); font-size: 18px; }
+.panel.help { border: 2px solid var(--coral); }

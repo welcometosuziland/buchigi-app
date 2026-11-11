@@ -14,6 +14,7 @@ function goStart() { cleanup(); cleanup = () => {}; start(); }
 function topBar(title, sub, back = true) {
   return el("div", { class: back ? "topblock has-back" : "topblock" },
     back ? el("button", { class: "back", onclick: goStart }, "처음으로") : null,
+    el("img", { class: "top-mark", src: "logo-mark.png", alt: "" }),
     el("p", {}, sub), el("h1", {}, title));
 }
 function homeLink() {
@@ -33,17 +34,19 @@ function fail(e, retry) {
 function consent(st) {
   const text = el("input", { type: "checkbox", checked: st.share_transcript });
   const voice = el("input", { type: "checkbox", checked: st.share_audio });
+  const trendBox = el("input", { type: "checkbox", checked: st.share_trend !== false });
   show(topBar("가족과 추억 이야기를 나눠요", "부치기 바치기", false),
     el("div", { class: "gap" },
       el("p", { class: "lead" }, "자녀가 올린 가족 사진을 보며 짧은 이야기를 나눠요. 시험이 아니니까 생각나는 대로 편하게 말씀해 주세요."),
       el("p", { class: "lead", style: "font-weight:700" }, "자녀에게 무엇을 보여줄지 정해 주세요"),
       el("label", { class: "check" }, text, el("span", {}, "제 이야기를 글로 보여줘도 좋아요")),
       el("label", { class: "check" }, voice, el("span", {}, "제 목소리를 들려줘도 좋아요")),
+      el("label", { class: "check" }, trendBox, el("span", {}, "이야기 방식의 변화 기록을 보여줘도 좋아요")),
       el("p", { class: "status", style: "text-align:left" }, "언제든 바꾸거나 그만둘 수 있어요. 병을 진단하는 기록이 아니에요."),
       homeLink()),
     dock(el("button", { class: "btn", onclick: async () => {
       try {
-        await api("/settings", { method: "POST", json: { consented: true, share_transcript: text.checked, share_audio: voice.checked } });
+        await api("/settings", { method: "POST", json: { consented: true, share_transcript: text.checked, share_audio: voice.checked, share_trend: trendBox.checked } });
         start();
       } catch (e) { fail(e, init); }
     } }, "좋아요, 시작할게요")));
@@ -59,23 +62,6 @@ function start() {
       } }, "자녀에게 보여줄 범위 바꾸기")),
     homeLink(),
     dock(el("button", { class: "btn", onclick: next }, "이야기 시작하기")));
-}
-
-/* 질문을 한 줄로: 말풍선 폭에 맞을 때까지 글씨를 줄이고(최소 15px),
-   그래도 넘치면 원래 크기로 두 줄 표시 (어르신이 읽기 편하도록) */
-function fitOneLine(node, max = 22, min = 15) {
-  node.style.whiteSpace = "nowrap";
-  let size = max;
-  node.style.fontSize = size + "px";
-  while (node.scrollWidth > node.clientWidth && size > min) {
-    size -= 1;
-    node.style.fontSize = size + "px";
-  }
-  if (node.scrollWidth > node.clientWidth) {
-    node.style.whiteSpace = "";
-    node.style.fontSize = "";
-    node.style.wordBreak = "keep-all"; // 줄을 넘길 땐 단어가 중간에 끊기지 않게
-  }
 }
 
 /* ---------- 질문과 대답 ---------- */
@@ -94,17 +80,12 @@ async function next() {
   const status = el("p", { class: "status" }, "질문을 들려드릴게요");
   const talk = el("button", { class: "btn", disabled: true }, "말하기");
   const replay = el("button", { class: "btn line" }, "다시 듣기");
-  const askBubble = el("p", { class: "bubble ask" }, q.question);
-  const thread = el("div", { class: "stack" }, askBubble);
+  const thread = el("div", { class: "stack" }, el("p", { class: "bubble ask" }, q.question));
   show(topBar("우리 가족 이야기", "추억 대화"),
     el("div", { class: "gap" },
       el("div", { class: "photo" }, el("img", { src: q.photo_url, alt: "가족 사진" }), q.caption ? el("span", { class: "tag" }, q.caption) : null),
       thread, status),
     dock(replay, talk));
-  fitOneLine(askBubble);
-  const refit = () => fitOneLine(askBubble);
-  window.addEventListener("resize", refit);
-  cleanup = () => { active = false; window.removeEventListener("resize", refit); };
 
   let questionEnd = null, audio;
   try { audio = new Audio(URL.createObjectURL(await api(`/questions/${q.question_id}/audio`, { blob: true }))); }
@@ -124,7 +105,6 @@ async function next() {
   let recorder, stream, chunks = [], answerStart, timer, left;
   cleanup = () => {
     active = false;
-    window.removeEventListener("resize", refit);
     clearInterval(timer);
     if (audio) audio.pause();
     if (recorder && recorder.state !== "inactive") {

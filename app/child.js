@@ -4,9 +4,14 @@ const tabs = document.getElementById("tabs");
 const DOW = ["일", "월", "화", "수", "목", "금", "토"];
 
 function show(...nodes) { view.replaceChildren(...nodes); window.scrollTo(0, 0); }
+const MAIN_URL = (window.BUCHIGI_CONFIG && window.BUCHIGI_CONFIG.MAIN_URL) || "../";
+function logo(big) {
+  return el("a", { class: "logo-link", href: MAIN_URL, "aria-label": "부치기 바치기 홈페이지로 가기" },
+    el("img", { class: big ? "logo-img big" : "logo-img", src: "logo-lockup.png", alt: "부치기 바치기" }));
+}
 function header() {
   return el("header", { class: "header" },
-    el("span", { class: "logo" }, "부치기 바치기"),
+    logo(false),
     el("button", { class: "textbtn", onclick: () => go("settings") }, "설정"));
 }
 function page(title, sub, ...body) {
@@ -51,6 +56,61 @@ function meter(label, t) {
       el("div", { class: `fill ${t.tone}`, style: `width:${Math.max(t.pct, 22)}%` }, el("span", { class: "chip" }, t.label))));
 }
 
+/* 변화 신호 (진단이 아니라 부모님 본인 기준의 변화) */
+const LEVEL = {
+  stable: { text: "평소와 비슷해요", tone: "t-mint" },
+  watch: { text: "살펴봐요", tone: "t-lime" },
+  consult: { text: "상담을 권해요", tone: "t-coral" },
+};
+function partChip(v) {
+  if (v == null) return { label: "정보 부족", tone: "t-lav", pct: 30 };
+  if (v >= 70) return { label: "많이 달라짐", tone: "t-coral", pct: Math.max(v, 22) };
+  if (v >= 40) return { label: "조금 달라짐", tone: "t-lime", pct: Math.max(v, 22) };
+  return { label: "평소와 비슷", tone: "t-mint", pct: Math.max(100 - v, 22) };
+}
+function helpPanel() {
+  return el("section", { class: "panel help stack" },
+    el("h2", {}, "전문 기관에 물어보기"),
+    el("p", {}, "가까운 보건소의 치매안심센터에서 상담을 받을 수 있어요. 만 60세 이상이면 인지 선별검사를 무료로 받을 수 있어요. (지역마다 기준이 다를 수 있어요)"),
+    el("a", { class: "btn block", href: "tel:1899-9988" }, "치매상담콜센터 1899-9988 전화하기"),
+    el("a", { class: "btn line block", href: "https://www.nid.or.kr", target: "_blank", rel: "noopener" }, "중앙치매센터에서 가까운 센터 찾기"),
+    el("p", { class: "note" }, "부모님께는 '검사'보다 '같이 건강 체크하러 가요'처럼 함께 가는 일정으로 말씀드리면 부담이 덜해요."));
+}
+function signalCard(sig, compact) {
+  if (!sig || sig.hidden) {
+    return el("section", { class: "panel stack" }, el("h2", {}, "변화 신호"),
+      el("p", { class: "sub" }, "부모님이 변화 기록 공유를 허락하지 않으셨어요."));
+  }
+  if (!sig.ready) {
+    const pct = Math.round((sig.have / sig.need) * 100);
+    return el("section", { class: "panel stack" },
+      el("h2", {}, "변화 신호"),
+      el("p", {}, "부모님의 평소 모습을 알아가는 중이에요."),
+      meter("모은 대화", { label: `${sig.have}/${sig.need}번`, tone: "t-lav", pct }),
+      el("p", { class: "note" }, `대화가 ${sig.need}번 모이면 처음 기록을 기준으로 변화를 알려드려요.`),
+      compact ? el("button", { class: "textbtn", onclick: () => go("report") }, "자세히 보기") : null);
+  }
+  const lv = LEVEL[sig.level];
+  const head = [
+    el("div", { style: "display:flex;justify-content:space-between;align-items:center" },
+      el("h2", {}, "변화 신호"), el("span", { class: `sig-badge ${lv.tone}` }, lv.text)),
+    el("div", { class: "sig-score" }, el("strong", {}, String(sig.score)), el("span", {}, "/ 100")),
+    el("p", {}, sig.message),
+  ];
+  if (compact) {
+    return el("section", { class: "panel stack" }, ...head,
+      el("button", { class: "btn line small", onclick: () => go("report") }, sig.level === "consult" ? "전문 기관 안내 보기" : "자세히 보기"));
+  }
+  return el("div", { class: "gap" },
+    el("section", { class: "panel stack" }, ...head,
+      el("div", { style: "margin-top:8px" }, sig.parts.map((p) => meter(p.label, partChip(p.score)))),
+      sig.weekly.length ? el("details", {}, el("summary", {}, "주별 변화 신호"),
+        el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, "주"), el("th", {}, "점수"))),
+          el("tbody", {}, sig.weekly.map((w) => el("tr", {}, el("td", {}, w.week.replace(/^\d{4}-W/, "") + "주"), el("td", {}, w.score == null ? "-" : String(w.score))))))) : null,
+      el("p", { class: "note" }, "점수가 높을수록 처음 기록보다 많이 달라졌다는 뜻이에요. 기준값은 아직 검증 중인 가설이에요.")),
+    sig.level === "consult" ? helpPanel() : null);
+}
+
 /* ---------- 처음 연결 ---------- */
 function setup(message) {
   tabs.hidden = true;
@@ -63,6 +123,7 @@ function setup(message) {
     try { await api("/settings"); go("home"); } catch (e) { setup(e.message); }
   } }, "연결하기");
   show(el("div", { style: "padding-top:40px" }, el("div", { class: "gap" },
+    logo(true),
     el("div", { class: "panel hero" },
       el("p", { class: "sub" }, "우리 엄마 기억 저장소"),
       el("h1", { style: "font-size:30px;margin-top:6px" }, "부모님의 새로운 말동무"),
@@ -94,10 +155,8 @@ async function home() {
         el("h2", {}, "이번 달 대화 기록"),
         el("p", { class: "sub" }, `${now.getFullYear()}년 ${now.getMonth() + 1}월`),
         el("div", { class: "big-num" }, el("strong", {}, String(monthCount)), el("span", {}, "번 대화했어요")),
-        el("div", { style: "margin-top:16px" },
-          meter("대화 참여", trend(w, "count", true)),
-          meter("대답 속도", trend(w, "avg_delay_sec", false)),
-          meter("이야기 양", trend(w, "avg_chars", true)))));
+        el("p", { class: "note", style: "margin-top:8px" }, "진단이 아닌 대화 기록이에요. 부모님 본인의 지난 기록과 비교해요.")));
+      cards.push(signalCard(rep.signal, true));
 
       const latest = (rep.recent || []).find((r) => r.transcript);
       if (latest) {
@@ -286,16 +345,13 @@ async function report() {
       el("p", { class: "sub" }, `대답까지 ${r.delay_sec ?? "-"}초 · ${r.duration_sec ?? "-"}초 동안 말씀`,
         r.keywords.length ? ` · 사진 속 이름 ${r.mentioned.length}/${r.keywords.length}` : "")));
     show(page("변화 기록", "부모님 본인의 첫 기록과 최근 기록을 비교해요.",
+      signalCard(rep.signal, false),
       el("section", { class: "panel" },
-        meter("대화 참여", trend(w, "count", true)),
-        meter("대답 속도", trend(w, "avg_delay_sec", false)),
-        meter("이야기 양", trend(w, "avg_chars", true)),
-        meter("이름·장소", trend(w, "mention_rate", true)),
-        el("details", { style: "margin-top:18px" }, el("summary", {}, "주별 숫자로 보기"),
+        el("details", {}, el("summary", {}, "주별 숫자로 보기"),
           el("table", {}, el("thead", {}, el("tr", {}, ["주", "횟수", "대답까지", "말씀 양", "이름·장소"].map((h) => el("th", {}, h)))), el("tbody", {}, rows)))),
       el("h2", { style: "padding:0 4px" }, "최근 대화"),
-      el("div", { class: "panel stack report-recent" }, ...recent),
-      el("p", { class: "panel note" }, "이 기록은 진단이 아님을 밝힙니다.")));
+      el("div", { class: "panel stack" }, ...recent),
+      el("p", { class: "panel note" }, "이 기록은 진단이 아니에요. 걱정되는 변화가 이어지면 가까운 치매안심센터 같은 전문 기관과 상담해 보세요.")));
   } catch (e) { show(header(), errorBox(e)); }
 }
 
@@ -312,6 +368,7 @@ async function settingsView() {
       row("동의", st.consented, "동의하셨어요", "아직 동의하지 않으셨어요"),
       row("대화 내용", st.share_transcript, "글로 보여줘도 좋다고 하셨어요", "보여주지 않아요"),
       row("목소리", st.share_audio, "들려줘도 좋다고 하셨어요", "들려주지 않아요"),
+      row("변화 신호", st.share_trend !== false, "보여줘도 좋다고 하셨어요", "보여주지 않아요"),
       el("p", { class: "note" }, "공유 범위는 부모님 화면에서만 바꿀 수 있어요.")));
   } catch (e) { parts.push(errorBox(e)); }
   parts.push(el("section", { class: "panel stack" },
@@ -334,4 +391,13 @@ function go(name) {
   routes[name]();
 }
 tabs.addEventListener("click", (e) => { const t = e.target.closest("button"); if (t) go(t.dataset.tab); });
+
+// 소개 페이지의 "앱 열기" 링크(#code=...&api=...)로 들어오면 서버 주소와 가족 코드를 자동으로 저장
+(function readLink() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get("code")) store.set("buchigi_code", h.get("code"));
+  if (h.get("api")) store.set("buchigi_api", h.get("api"));
+  if (location.hash) history.replaceState(null, "", location.pathname);
+})();
+
 if (!familyCode()) setup(); else go("home");
